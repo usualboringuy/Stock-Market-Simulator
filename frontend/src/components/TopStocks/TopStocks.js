@@ -39,12 +39,13 @@ function TopStocks()
 					{
 						const chartData = stock.historical_ohlc
 							? stock.historical_ohlc.map(item => ({
-								// Convert nested MongoDB date to YYYY-MM-DD string
-								date: item.DATE?.$date ? new Date(item.DATE.$date).toISOString().slice(0, 10) : '',
+								date: item.DATE && (item.DATE.$date || item.DATE)
+									? new Date(item.DATE.$date || item.DATE).toISOString().slice(0, 10)
+									: '',
 								close: Number(item.CLOSE ?? 0),
 							}))
-							: []
-
+							: [];
+						console.log('Chart data for', stock.symbol, chartData);
 						return (
 							<tr key={stock.symbol} style={{ borderBottom: '1px solid #ccc' }}>
 								<td>{stock.symbol}</td>
@@ -53,7 +54,7 @@ function TopStocks()
 									{stock.pChange.toFixed(2)}
 								</td>
 								<td>{stock.live_volume}</td>
-								<td style={{ width: 150, height: 100, padding: '5px' }}>
+								<td style={{ width: 300, height: 100, padding: '5px' }}>
 									{chartData.length > 0 ? (
 										<TopStocksChart data={chartData} />
 									) : (
