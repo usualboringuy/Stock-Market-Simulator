@@ -4,10 +4,10 @@ Combined jugaad-data + nsepython Stock Data Ingestion Client with concurrency
 
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Dict, List
 
-from jugaad_data.nse import NSELive
+from jugaad_data.nse import NSELive, stock_df
 from mongo_handler import MongoHandler
 
 try:
@@ -83,6 +83,21 @@ class JugaadNSEClient:
             logger.error(f"Failed to fetch jugaad data for {symbol}: {e}")
             return {}
 
+    def get_historical_ohlc(self, symbol: str, days: int = 7) -> List[Dict]:
+        """
+        Fetch historical OHLC for the last `days` calendar days.
+        Returns list of dicts with columns: date, open, high, low, close, volume, etc.
+        """
+        try:
+            end_date = datetime.now().date()
+            start_date = end_date - timedelta(days=days)
+            df = stock_df(symbol, from_date=start_date, to_date=end_date, series="EQ")
+            df = df.reset_index()
+            return df.to_dict(orient="records")
+        except Exception as e:
+            logger.warning(f"Failed fetching historical OHLC for {symbol}: {e}")
+            return []
+
     def fetch_and_store_quote(self, symbol: str) -> bool:
         jugaad_data = self.get_jugaad_data(symbol)
         if not jugaad_data:
@@ -91,11 +106,17 @@ class JugaadNSEClient:
         volume = self.get_nsepython_volume(symbol)
         jugaad_data["live_volume"] = volume
 
+        # Fetch historical OHLC and add to data for charts
+        historical_ohlc = self.get_historical_ohlc(symbol, days=7)
+        jugaad_data["historical_ohlc"] = historical_ohlc
+
         try:
             self.quotes_col.update_one(
                 {"symbol": symbol}, {"$set": jugaad_data}, upsert=True
             )
-            logger.info(f"Stored quote for {symbol} with live volume: {volume}")
+            logger.info(
+                f"Stored quote for {symbol} with live volume and historical OHLC"
+            )
             return True
         except Exception as e:
             logger.error(f"MongoDB insert error for {symbol}: {e}")

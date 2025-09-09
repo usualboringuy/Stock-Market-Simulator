@@ -39,8 +39,9 @@ function TopStocks()
 					{
 						const chartData = stock.historical_ohlc
 							? stock.historical_ohlc.map(item => ({
-								date: item.Date || item.date || '',
-								close: Number(item.close || item.lastPrice || 0)
+								// Convert nested MongoDB date to YYYY-MM-DD string
+								date: item.DATE?.$date ? new Date(item.DATE.$date).toISOString().slice(0, 10) : '',
+								close: Number(item.CLOSE ?? 0),
 							}))
 							: []
 
