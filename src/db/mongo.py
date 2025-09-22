@@ -192,6 +192,13 @@ def ensure_indexes() -> None:
         quotes.create_index([("token", ASCENDING), ("timestamp", ASCENDING)])
 
     logger.info("Indexes ensured for users, portfolios, trades, quotes")
+    # inside ensure_indexes() at the end
+    try:
+        from src.db.sessions import ensure_session_indexes
+
+        ensure_session_indexes()
+    except Exception as e:
+        logger.warning("Failed ensuring session indexes: %s", e)
 
 
 def server_supports_transactions() -> bool:
