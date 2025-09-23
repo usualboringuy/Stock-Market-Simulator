@@ -1,32 +1,47 @@
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .candles import Interval, fallback_daily_if_empty, normalize_candles
 from .config import settings
 
-# NEW: DB init
+# DB init
 from .db import connect_mongo, ensure_indexes
 from .instruments import instruments
 from .logger import logger
+
+# Routers
+from .routes import auth as auth_routes
+from .routes import portfolio as portfolio_routes
+from .routes import trades as trades_routes
 from .smartapi_client import smart_mgr
 from .timeutils import is_market_open, last_n_days_endpoints, now_ist, parse_iso_ist
 
-app = FastAPI(title="Stock Simulator - Modules 1+2")
+app = FastAPI(title="Stock Simulator - Modules 1 to 3")
+
+# CORS (for browser front-ends)
+_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+if _origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 @app.on_event("startup")
 def _startup():
-    logger.info("Starting Data Service (Modules 1+2)")
-    # Init Mongo
+    logger.info("Starting Data Service (Modules 1-3)")
     try:
         connect_mongo()
         ensure_indexes()
     except Exception as e:
         logger.warning(f"Mongo not ready or index init failed: {e}")
 
-    # Lazy login SmartAPI historical
     try:
         if settings.angel_hist_api_key:
             smart_mgr.ensure_logged_in()
@@ -54,6 +69,7 @@ def health():
             "historical_api_key_present": bool(settings.angel_hist_api_key),
             "trading_api_key_present": bool(settings.angel_market_api_key),
             "stocks_csv": settings.stocks_csv,
+            "csrf_enabled": settings.csrf_enabled,
         }
     )
 
@@ -89,7 +105,6 @@ def get_candles(
         ins = instruments.find_by_token(token)
     if not ins:
         raise HTTPException(status_code=404, detail="Instrument not found in CSV")
-
     if not settings.angel_hist_api_key:
         raise HTTPException(
             status_code=500, detail="ANGEL_HIST_API_KEY missing in .env"
@@ -112,3 +127,9 @@ def get_candles(
         "to": end.isoformat(),
         "series": series,
     }
+
+
+# Mount routers for Module 3
+app.include_router(auth_routes.router)
+app.include_router(portfolio_routes.router)
+app.include_router(trades_routes.router)
