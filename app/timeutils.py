@@ -66,3 +66,17 @@ def last_n_days_endpoints(n: int) -> tuple[datetime, datetime]:
     end = now_ist()
     start = end - timedelta(days=n)
     return start, end
+
+
+def start_of_day_ist(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=IST)
+    dt = dt.astimezone(IST)
+    return dt.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def end_of_day_ist(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=IST)
+    dt = dt.astimezone(IST)
+    return dt.replace(hour=23, minute=59, second=0, microsecond=0)

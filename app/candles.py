@@ -3,6 +3,8 @@ from typing import Any, Dict, List, Literal, Optional
 
 from .logger import logger
 from .smartapi_client import smart_mgr
+from .timeutils import end_of_day_ist  # NEW
+from .timeutils import start_of_day_ist  # NEW
 from .timeutils import IST, clamp_market_hours, now_ist, to_smartapi_str
 
 Interval = Literal[
@@ -93,6 +95,11 @@ def _is_intraday(interval: Interval) -> bool:
 def fallback_daily_if_empty(
     exchange: str, token: str, interval: Interval, start: datetime, end: datetime
 ) -> List[list]:
+    # If requesting daily, snap the bounds to full-day range first
+    if interval == "ONE_DAY":
+        start = start_of_day_ist(start)
+        end = end_of_day_ist(end)
+
     # Short-circuit: very old/large intraday ranges often unsupported — go straight to daily
     if _is_intraday(interval):
         too_old = (now_ist() - end) > timedelta(days=45)
@@ -101,8 +108,9 @@ def fallback_daily_if_empty(
             logger.info(
                 f"Intraday range too old/large for token {token}. Using ONE_DAY fallback for {start} - {end}"
             )
+            s_snap, e_snap = start_of_day_ist(start), end_of_day_ist(end)
             daily_fast = fetch_historical_chunked(
-                exchange, token, "ONE_DAY", start, end
+                exchange, token, "ONE_DAY", s_snap, e_snap
             )
             if daily_fast:
                 return daily_fast
@@ -111,10 +119,13 @@ def fallback_daily_if_empty(
     if data:
         return data
 
-    daily = fetch_historical_chunked(exchange, token, "ONE_DAY", start, end)
+    # Fallback to daily within the window with snapped bounds
+    s_snap, e_snap = start_of_day_ist(start), end_of_day_ist(end)
+    daily = fetch_historical_chunked(exchange, token, "ONE_DAY", s_snap, e_snap)
     if daily:
         return daily
 
+    # Final fallback: last 365 days daily
     today = now_ist()
     last_year = today - timedelta(days=365)
     daily2 = fetch_historical_chunked(exchange, token, "ONE_DAY", last_year, today)
