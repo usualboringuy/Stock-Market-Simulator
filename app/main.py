@@ -5,18 +5,28 @@ from fastapi.responses import JSONResponse
 
 from .candles import Interval, fallback_daily_if_empty, normalize_candles
 from .config import settings
+
+# NEW: DB init
+from .db import connect_mongo, ensure_indexes
 from .instruments import instruments
 from .logger import logger
 from .smartapi_client import smart_mgr
 from .timeutils import is_market_open, last_n_days_endpoints, now_ist, parse_iso_ist
 
-app = FastAPI(title="Stock Simulator - Module 1 Data Service")
+app = FastAPI(title="Stock Simulator - Modules 1+2")
 
 
 @app.on_event("startup")
 def _startup():
-    logger.info("Starting Module 1 Data Service")
-    # Lazy login (done upon first call), but we can attempt to login historical proactively
+    logger.info("Starting Data Service (Modules 1+2)")
+    # Init Mongo
+    try:
+        connect_mongo()
+        ensure_indexes()
+    except Exception as e:
+        logger.warning(f"Mongo not ready or index init failed: {e}")
+
+    # Lazy login SmartAPI historical
     try:
         if settings.angel_hist_api_key:
             smart_mgr.ensure_logged_in()
@@ -72,14 +82,6 @@ def get_candles(
     frm: Optional[str] = Query(None, alias="from"),
     to: Optional[str] = Query(None),
 ):
-    """
-    Historical candles on-demand (SmartAPI Historical app).
-    - One of (symbol, token) is required (symbol preferred).
-    - interval: as per SmartAPI docs.
-    - from/to: ISO date strings. If omitted, defaults to last 30 days.
-    Fallbacks: if empty, fallback to daily within window; if still empty, last 365 days daily.
-    Never returns an empty 'series' unless SmartAPI is unreachable or instrument invalid.
-    """
     ins = None
     if symbol:
         ins = instruments.find_by_symbol(symbol)

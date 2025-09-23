@@ -4,7 +4,7 @@ import time
 from typing import Any, Dict, Literal, Optional, cast
 
 import pyotp
-from SmartApi import SmartConnect  # official import per docs
+from SmartApi import SmartConnect
 
 from .config import settings
 from .logger import logger
@@ -23,7 +23,7 @@ class _SessionState:
 
         self.login_lock = threading.Lock()
         self.call_lock = threading.Lock()
-        self.min_interval_sec = 0.25  # throttle: ~4 calls/sec max per session
+        self.min_interval_sec = 0.25
         self._last_call_ts = 0.0
 
     def throttle(self):
@@ -36,25 +36,12 @@ class _SessionState:
 
 
 class SmartAPIManager:
-    """
-    Manages two SmartAPI sessions (historical and trading) with login serialization and basic throttling.
-    Uses only officially documented methods:
-    - SmartConnect
-    - generateSession
-    - getfeedToken
-    - getProfile
-    - generateToken
-    - getCandleData
-    - terminateSession
-    """
-
     def __init__(self):
         self.hist = _SessionState(settings.angel_hist_api_key, label="historical")
         self.trade = _SessionState(settings.angel_market_api_key, label="trading")
 
     @staticmethod
     def _ensure_dict_response(resp: Any, context: str) -> Dict[str, Any]:
-        # Some environments may surface bytes. Normalize to dict for static typing and safety.
         if isinstance(resp, (bytes, bytearray)):
             try:
                 decoded = json.loads(resp.decode("utf-8"))
@@ -106,7 +93,6 @@ class SmartAPIManager:
             try:
                 sess.feed_token = client.getfeedToken()
             except Exception as e:
-                # Not critical for candle endpoints
                 logger.warning(f"getfeedToken failed for {sess.label}: {e}")
                 sess.feed_token = None
 
@@ -114,7 +100,6 @@ class SmartAPIManager:
             logger.info(f"SmartAPI {sess.label} login OK")
 
     def ensure_logged_in(self):
-        # Lazily login when first needed
         if settings.angel_hist_api_key:
             self._ensure_session(self.hist)
         if settings.angel_market_api_key:
@@ -123,15 +108,6 @@ class SmartAPIManager:
     def get_candles(
         self, exchange: str, symboltoken: str, interval: str, fromdate: str, todate: str
     ) -> Dict[str, Any]:
-        """
-        Calls getCandleData with throttling and returns the raw response dict as documented.
-        Parameters follow official docs for getCandleData:
-        - exchange (e.g., "NSE")
-        - symboltoken (string)
-        - interval (e.g., "ONE_MINUTE", "ONE_DAY", ...)
-        - fromdate ("YYYY-MM-DD HH:MM")
-        - todate ("YYYY-MM-DD HH:MM")
-        """
         self._ensure_session(self.hist)
         params: Dict[str, Any] = {
             "exchange": exchange,
@@ -142,7 +118,7 @@ class SmartAPIManager:
         }
         self.hist.throttle()
         try:
-            assert self.hist.client is not None, "Historical client not initialized"
+            assert self.hist.client is not None
             raw = self.hist.client.getCandleData(params)
             return self._ensure_dict_response(raw, "getCandleData")
         except Exception as e:
@@ -150,11 +126,10 @@ class SmartAPIManager:
             raise
 
     def terminate_all(self):
-        # Best-effort logout to avoid resource leaks
         for sess in (self.hist, self.trade):
             if sess.client:
                 try:
-                    sess.client.terminateSession(settings.angel_client_id)  # per docs
+                    sess.client.terminateSession(settings.angel_client_id)
                 except Exception as e:
                     logger.warning(f"terminateSession failed for {sess.label}: {e}")
                 finally:

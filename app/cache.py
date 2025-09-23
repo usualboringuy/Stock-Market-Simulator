@@ -1,5 +1,5 @@
 import time
-from typing import Any, Tuple
+from typing import Any
 
 
 class TTLCache:
@@ -10,7 +10,6 @@ class TTLCache:
 
     def _prune(self):
         if len(self._store) > self.max_items:
-            # Remove expired or oldest
             now = time.time()
             expired_keys = [
                 k for k, (ts, _) in self._store.items() if now - ts > self.ttl
@@ -18,7 +17,6 @@ class TTLCache:
             for k in expired_keys:
                 self._store.pop(k, None)
             if len(self._store) > self.max_items:
-                # remove oldest by ts
                 oldest = sorted(self._store.items(), key=lambda kv: kv[1][0])[
                     : len(self._store) - self.max_items
                 ]

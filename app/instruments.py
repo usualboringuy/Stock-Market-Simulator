@@ -30,10 +30,8 @@ class InstrumentStore:
                     continue
                 s0 = row[0].strip()
                 t0 = row[1].strip()
-                # Skip header rows like: symbol,token,name
                 if s0.lower() == "symbol" and t0.lower() == "token":
                     continue
-                # Tokens in our CSV should be numeric for NSE equities/indices
                 if not t0.isdigit():
                     logger.warning(f"Skipping row with non-numeric token: {row}")
                     continue

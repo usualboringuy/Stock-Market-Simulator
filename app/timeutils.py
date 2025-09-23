@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 import re
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 IST = ZoneInfo("Asia/Kolkata")
 
-MARKET_OPEN = time(9, 0)  # 09:00 IST
-MARKET_CLOSE = time(15, 30)  # 15:30 IST
+MARKET_OPEN = time(9, 0)
+MARKET_CLOSE = time(15, 30)
 
 
 def now_ist() -> datetime:
@@ -13,7 +15,6 @@ def now_ist() -> datetime:
 
 
 def is_market_day(dt: datetime) -> bool:
-    # Monday=0 ... Sunday=6, market Mon-Fri only
     return dt.weekday() < 5
 
 
@@ -29,7 +30,6 @@ def is_market_open(dt: datetime | None = None) -> bool:
 
 
 def to_smartapi_str(dt: datetime) -> str:
-    # SmartAPI format: "YYYY-MM-DD HH:MM" (IST) as per official docs
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=IST)
     dt_ist = dt.astimezone(IST)
@@ -37,7 +37,6 @@ def to_smartapi_str(dt: datetime) -> str:
 
 
 def clamp_market_hours(start: datetime, end: datetime) -> tuple[datetime, datetime]:
-    # Ensure both dates are tz-aware IST for consistent formatting
     if start.tzinfo is None:
         start = start.replace(tzinfo=IST)
     if end.tzinfo is None:
@@ -46,15 +45,18 @@ def clamp_market_hours(start: datetime, end: datetime) -> tuple[datetime, dateti
 
 
 def parse_iso_ist(s: str) -> datetime:
+    # Accept 'YYYY-MM-DD' or full iso; assume IST if no tz.
     s = s.strip()
-    # Fix inputs like "2025-09-22T09:00:00 05:30" (space instead of '+')
+    # Fix inputs where '+' became a space before offset, e.g. "2025-09-22T09:00:00 05:30"
     m = re.search(r"(.*[T\s]\d{2}:\d{2}:\d{2})\s(\d{2}:\d{2})$", s)
     if m and "+" not in s and "-" not in s[m.start(2) - 1 : m.start(2)]:
         s = f"{m.group(1)}+{m.group(2)}"
-    # Accept ISO-like strings; if no tz, assume IST
+    # Add time if only date provided
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
+        s = s + "T00:00:00"
     dt = (
         datetime.fromisoformat(s.replace("Z", "+00:00"))
-        if "T" in s or " " in s
+        if ("T" in s or " " in s)
         else datetime.fromisoformat(s)
     )
     if dt.tzinfo is None:
