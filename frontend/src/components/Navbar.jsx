@@ -54,7 +54,7 @@ export default function Navbar()
 
 	return (
 		<div className="navbar">
-			<Link to="/" className="nav-brand">Stock Simulator</Link>
+			<Link to="/" className="nav-brand">Stock Market Simulator</Link>
 			<div className="nav-links">
 				<Link to="/">Dashboard</Link>
 				<Link to="/portfolio">Portfolio</Link>
