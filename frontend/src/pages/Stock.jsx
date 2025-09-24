@@ -14,8 +14,6 @@ function rangeToDays(range)
 		case '1M': return 30
 		case '6M': return 180
 		case '1Y': return 365
-		case '5Y': return 365 * 5
-		case 'ALL': return 365 * 10
 		default: return 30
 	}
 }

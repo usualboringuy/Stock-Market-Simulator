@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 
 from ..db import PORTFOLIOS, get_db
 
-DEFAULT_INITIAL_CASH = 100000.0
+DEFAULT_INITIAL_CASH = 1000000.0
 
 
 def get(user_id) -> Optional[Dict[str, Any]]:

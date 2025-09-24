@@ -60,3 +60,8 @@ class TradeOut(BaseModel):
     amount: float
     realized_pl: float
     executed_at: str
+
+
+# New: deposit request for adding cash
+class DepositRequest(BaseModel):
+    amount: Annotated[float, Field(gt=0, lt=1_000_000_000)]
