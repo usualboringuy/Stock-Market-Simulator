@@ -100,7 +100,7 @@ Frontend
 │       ├──sessions.py
 │       └──trades.py
 ├── scripts/
-│   ├── smoke.py               # API smoke
+│   ├── smoke_module1.py       # API smoke
 │   ├── smoke_module2.py       # DB & trade smoke
 │   └── smoke_module3.py       # Full auth/portfolio/trade smoke
 ├── data/
@@ -165,7 +165,7 @@ npm run dev
 
 ```bash
 # minimal API health/instruments/candles
-python -m scripts.smoke
+python -m scripts.smoke_module1
 
 # DB + virtual trades + persists
 python -m scripts.smoke_module2
