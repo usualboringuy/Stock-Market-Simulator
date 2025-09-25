@@ -7,26 +7,21 @@ import { useAuth } from '../context/AuthContext'
 
 const POLL_MS = 10000
 const HEALTH_MS = 60000
-const FALLBACK_RANGE_WHEN_CLOSED = '1D'
 
 function rangeToDays(range)
 {
 	switch (range)
 	{
 		case 'LIVE': return 1
-		case '1D': return 1
 		case '1W': return 7
 		case '1M': return 30
+		case '3M': return 90
 		case '6M': return 180
 		case '1Y': return 365
 		default: return 30
 	}
 }
-
-function shouldPoll(range)
-{
-	return range === 'LIVE'
-}
+function shouldPoll(range) { return range === 'LIVE' }
 
 export default function Stock()
 {
@@ -63,11 +58,13 @@ export default function Stock()
 			}
 		}
 
-		const adjustRangeForMarket = (open) =>
+		const turnOffAutoIfClosed = (open) =>
 		{
-			if (!followMarket) return
-			// Do not force to LIVE when open; only move away from LIVE on close
-			if (!open && range === 'LIVE') setRange(FALLBACK_RANGE_WHEN_CLOSED)
+			if (!open && followMarket)
+			{
+				setFollowMarket(false)
+				try { localStorage.setItem('follow_market', 'false') } catch { }
+			}
 		}
 
 		const load = async (silent = false) =>
@@ -77,14 +74,10 @@ export default function Stock()
 			try
 			{
 				const to = new Date()
-				let from = new Date(to)
+				const from = new Date(to)
 				if (range === 'LIVE')
 				{
 					from.setHours(9, 0, 0, 0)
-				} else if (range === '1D')
-				{
-					from.setDate(from.getDate() - 2)
-					from.setHours(0, 0, 0, 0)
 				} else
 				{
 					from.setDate(from.getDate() - rangeToDays(range))
@@ -96,16 +89,7 @@ export default function Stock()
 					to: to.toISOString()
 				}
 				const res = await api.get('/api/candles', { params })
-				let s = res.data?.series || []
-				if (range === '1D' && s.length === 0)
-				{
-					const f2 = new Date(to); f2.setDate(f2.getDate() - 7); f2.setHours(0, 0, 0, 0)
-					const res2 = await api.get('/api/candles', {
-						params: { symbol, interval: 'ONE_DAY', from: f2.toISOString(), to: to.toISOString() }
-					})
-					s = (res2.data?.series || []).slice(-2)
-				}
-				if (mounted) setSeries(s)
+				if (mounted) setSeries(res.data?.series || [])
 			} catch (e)
 			{
 				if (mounted) setErr(e?.response?.data?.detail || 'Failed to load candles')
@@ -119,17 +103,9 @@ export default function Stock()
 		{
 			if (!shouldPoll(range)) return
 			if (priceTimer) clearInterval(priceTimer)
-			priceTimer = setInterval(() =>
-			{
-				load(true) // silent update
-			}, POLL_MS)
+			priceTimer = setInterval(() => { load(true) }, POLL_MS)
 		}
-
-		const stopPricePolling = () =>
-		{
-			if (priceTimer) clearInterval(priceTimer)
-			priceTimer = null
-		}
+		const stopPricePolling = () => { if (priceTimer) clearInterval(priceTimer); priceTimer = null }
 
 		const boot = async () =>
 		{
@@ -137,7 +113,7 @@ export default function Stock()
 			const open = await checkHealth()
 			if (!mounted) return
 			setMarketOpen(open)
-			adjustRangeForMarket(open)
+			turnOffAutoIfClosed(open)
 			if (open && shouldPoll(range)) startPricePolling()
 			else stopPricePolling()
 
@@ -146,14 +122,13 @@ export default function Stock()
 				const nowOpen = await checkHealth()
 				if (!mounted) return
 				setMarketOpen(nowOpen)
-				adjustRangeForMarket(nowOpen)
+				turnOffAutoIfClosed(nowOpen)
 				if (nowOpen && shouldPoll(range)) startPricePolling()
 				else stopPricePolling()
 			}, HEALTH_MS)
 		}
 
 		boot()
-
 		return () =>
 		{
 			mounted = false

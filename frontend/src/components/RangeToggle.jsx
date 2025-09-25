@@ -1,4 +1,4 @@
-export const RANGE_OPTS = ['LIVE', '1D', '1W', '1M', '6M', '1Y']
+export const RANGE_OPTS = ['LIVE', '1W', '1M', '3M', '6M', '1Y']
 export const MODE_OPTS = ['line', 'candlestick']
 
 export default function RangeToggle({ range, setRange, mode, setMode })
