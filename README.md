@@ -42,7 +42,7 @@ Backend
 
 Frontend
 - React + Vite + Chart.js v4 + chartjs‑chart‑financial 0.2.1
-- Dashboard (curated symbols): LIVE, 1D, 1W, 1M, 6M, 1Y
+- Dashboard (curated symbols): LIVE, 1W, 1M, 3M, 6M, 1Y
 - Stock detail: full chart + trade form
 - Portfolio:
   - Holdings‑only summary: holdings value, 1D returns, total returns, invested (excludes cash)
@@ -58,7 +58,7 @@ Frontend
   - Never blank: intraday/daily fallbacks
 - Live polling (10s) during market hours (gated by /api/health), “Auto” follow mode:
   - When market opens: stays on your chosen range (doesn’t force LIVE)
-  - When market closes: if you are on LIVE, it switches to 1D (or your chosen fallback)
+  - When market closes: if you are on LIVE, it switches off Auto toggle
 
 ---
 
@@ -303,11 +303,11 @@ CSRF
 ## Frontend behavior
 
 Dashboard
-- Range buttons: LIVE / 1D / 1W / 1M / 6M / 1Y
+- Range buttons: LIVE / 1W / 1M / 3M / 6M / 1Y
 - Auto toggle:
   - If Auto is ON:
     - When market opens: keeps your chosen range
-    - When market closes: if you were on LIVE, switches to 1D
+    - When market closes: if you were on LIVE, switches off Auto toggle
 - LIVE polling: every 10s only when market_open = true (from /api/health)
 - Silent refresh (no spinner) to avoid remount flicker
 
@@ -343,7 +343,7 @@ Market hours
 
 - “No data” in charts
   - Check ANGEL_HIST_API_KEY is valid
-  - Try 1D/1W/1M: the service falls back to daily if intraday is empty/too old
+  - Try 1W/1M: the service falls back to daily if intraday is empty/too old
 - 422 on signup/login
   - Username must match /^[a-zA-Z0-9_.-]+$/ and be ≥ 3 chars; password ≥ 6 chars
 - Cookies not set in the browser
