@@ -15,6 +15,7 @@ from .logger import logger
 # Routers
 from .routes import auth as auth_routes
 from .routes import portfolio as portfolio_routes
+from .routes import prices as prices_routes
 from .routes import trades as trades_routes
 from .smartapi_client import smart_mgr
 from .timeutils import is_market_open, last_n_days_endpoints, now_ist, parse_iso_ist
@@ -133,3 +134,4 @@ def get_candles(
 app.include_router(auth_routes.router)
 app.include_router(portfolio_routes.router)
 app.include_router(trades_routes.router)
+app.include_router(prices_routes.router)

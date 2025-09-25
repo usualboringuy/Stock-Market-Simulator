@@ -87,7 +87,7 @@ function rangeConfig(range, small)
 	const R = (range || '').toUpperCase()
 	switch (R)
 	{
-		case 'LIVE': return { unit: 'hour', tooltip: 'MMM d, HH:mm', pxPerBar: 10, minBars: small ? 60 : 90, maxBars: small ? 220 : 320, lineSmooth: 0.15 }
+		case 'LIVE': return { unit: 'hour', tooltip: 'HH:mm', pxPerBar: 10, minBars: small ? 60 : 90, maxBars: small ? 220 : 320, lineSmooth: 0.15 }
 		case '1W': return { unit: 'day', tooltip: 'MMM d', pxPerBar: 10, minBars: small ? 60 : 90, maxBars: small ? 200 : 280, lineSmooth: 0.15 }
 		case '1M': return { unit: 'week', tooltip: 'MMM d', pxPerBar: 10, minBars: small ? 60 : 90, maxBars: small ? 200 : 260, lineSmooth: 0.15 }
 		case '6M': return { unit: 'month', tooltip: 'MMM yyyy', pxPerBar: 10, minBars: small ? 50 : 80, maxBars: small ? 160 : 220, lineSmooth: 0.15 }

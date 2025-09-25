@@ -21,7 +21,7 @@ function rangeToDays(range)
 export default function Stock()
 {
 	const { symbol } = useParams()
-	const [range, setRange] = useState('1M')
+	const [range, setRange] = useState('LIVE')
 	const [mode, setMode] = useState('line')
 	const [series, setSeries] = useState([])
 	const [loading, setLoading] = useState(false)

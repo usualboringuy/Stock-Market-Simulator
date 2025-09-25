@@ -253,3 +253,39 @@ small.muted {
 	background: #f8fafc;
 	border-radius: 8px;
 }
+
+.holdings-summary {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 12px;
+}
+
+.metric {
+	background: #fff;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	padding: 10px;
+}
+
+.metric-title {
+	font-size: 12px;
+	color: var(--muted);
+	margin-bottom: 6px;
+	text-transform: uppercase;
+	letter-spacing: .03em;
+}
+
+.metric-value {
+	font-size: 18px;
+	font-weight: 700;
+}
+
+.sparkline {
+	width: 120px;
+	height: 28px;
+}
+
+.row[style*="cursor: pointer"]:hover {
+	background: #f8fafc;
+	border-radius: 8px;
+}

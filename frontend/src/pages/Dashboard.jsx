@@ -21,7 +21,7 @@ function rangeToDays(range)
 
 export default function Dashboard()
 {
-	const [range, setRange] = useState('1M')
+	const [range, setRange] = useState('LIVE')
 	const [mode, setMode] = useState('line')
 	const [cards, setCards] = useState([]) // [{symbol, series, returnPct}]
 	const [loading, setLoading] = useState(false)
