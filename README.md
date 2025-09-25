@@ -86,15 +86,19 @@ Frontend
 │   ├── candles.py             # Chunked fetch + fallbacks + normalize
 │   ├── db.py                  # Mongo client + indexes
 │   ├── security.py            # PBKDF2 hashing + verify
-│   ├── repositories/          # users, sessions, portfolios, trades
 │   ├── trading.py             # Simulated BUY/SELL
 │   ├── auth.py, deps.py       # Cookies, CSRF, dependencies
 │   ├── schemas.py             # Pydantic models
-│   └── routes/
-│       ├── auth.py            # /api/auth/*
-│       ├── portfolio.py       # /api/portfolio, /api/portfolio/deposit
-│       ├── trades.py          # /api/trades, /api/trades/recent
-│       └── prices.py          # /api/prices/live (batch latest + sparkline)
+│   ├── routes/
+│   │   ├── auth.py            # /api/auth/*
+│   │   ├── portfolio.py       # /api/portfolio, /api/portfolio/deposit
+│   │   ├── trades.py          # /api/trades, /api/trades/recent
+│   │   └── prices.py          # /api/prices/live (batch latest + sparkline)
+│   └── repositories/          # users, sessions, portfolios, trades
+│       ├──portfolios.py
+│       ├──users.py
+│       ├──sessions.py
+│       └──trades.py
 ├── scripts/
 │   ├── smoke.py               # API smoke
 │   ├── smoke_module2.py       # DB & trade smoke
@@ -109,6 +113,7 @@ Frontend
 │       ├── main.jsx, App.jsx, styles.css
 │       ├── api/client.js
 │       ├── context/AuthContext.jsx
+│       ├── utils/cookies.js
 │       ├── components/
 │       │   ├── Navbar.jsx, RangeToggle.jsx
 │       │   ├── ChartOHLC.jsx       # Chart with line/candle, marker, color logic
@@ -116,6 +121,7 @@ Frontend
 │       └── pages/
 │           ├── Dashboard.jsx
 │           ├── Stock.jsx
+│           ├── Auth.jsx
 │           └── Portfolio.jsx
 ├── requirements.txt
 ├── .env.example
