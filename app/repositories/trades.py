@@ -19,3 +19,9 @@ def list_recent(user_id, limit: int = 20) -> List[Dict[str, Any]]:
     db = get_db()
     cur = db[TRADES].find({"user_id": user_id}).sort("executed_at", -1).limit(limit)
     return list(cur)
+
+
+def delete_all_for_user(user_id) -> int:
+    db = get_db()
+    res = db[TRADES].delete_many({"user_id": user_id})
+    return res.deleted_count

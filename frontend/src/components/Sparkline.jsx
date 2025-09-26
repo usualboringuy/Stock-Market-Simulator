@@ -13,17 +13,30 @@ import { Chart } from 'react-chartjs-2'
 
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Tooltip, Legend)
 
-export default function Sparkline({ values = [], width = 120, height = 28 })
+export default function Sparkline({
+	values = [],
+	baseline = null,      // latest daily open (today/last session)
+	width = 120,
+	height = 28,
+	upColor = '#10b981',
+	downColor = '#ef4444',
+	neutralColor = '#94a3b8'
+})
 {
 	const sanitized = Array.isArray(values)
 		? values.map(v => Number(v)).filter(v => Number.isFinite(v))
 		: []
 
+	const last = sanitized.length ? sanitized[sanitized.length - 1] : null
+	const ref = baseline != null ? Number(baseline) : (sanitized.length ? sanitized[0] : null)
+
 	const color = useMemo(() =>
 	{
-		if (sanitized.length < 2) return '#94a3b8'
-		return sanitized[sanitized.length - 1] >= sanitized[0] ? '#10b981' : '#ef4444'
-	}, [sanitized])
+		if (!Number.isFinite(last) || !Number.isFinite(ref)) return neutralColor
+		if (last > ref) return upColor
+		if (last < ref) return downColor
+		return neutralColor
+	}, [last, ref, upColor, downColor, neutralColor])
 
 	const data = useMemo(() => ({
 		labels: sanitized.map((_, i) => i),
@@ -32,7 +45,7 @@ export default function Sparkline({ values = [], width = 120, height = 28 })
 			borderColor: color,
 			backgroundColor: 'transparent',
 			borderWidth: 1.5,
-			tension: 0.25,
+			tension: 0.2,
 			pointRadius: 0
 		}]
 	}), [sanitized, color])

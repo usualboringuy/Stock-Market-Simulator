@@ -55,6 +55,7 @@ export default function Dashboard()
 			}
 		}
 
+		// Turn OFF Auto when market closes (persist it), but do not change the range
 		const turnOffAutoIfClosed = (open) =>
 		{
 			if (!open && followMarket)
@@ -72,13 +73,9 @@ export default function Dashboard()
 			{
 				const to = new Date()
 				const from = new Date(to)
-				if (range === 'LIVE')
-				{
-					from.setHours(9, 0, 0, 0)
-				} else
-				{
-					from.setDate(from.getDate() - rangeToDays(range))
-				}
+				if (range === 'LIVE') from.setHours(9, 0, 0, 0)
+				else from.setDate(from.getDate() - rangeToDays(range))
+
 				const reqs = CURATED_SYMBOLS.map(async (sym) =>
 				{
 					try
@@ -164,9 +161,12 @@ export default function Dashboard()
 		<div className="grid">
 			<div className="row" style={{ alignItems: 'baseline' }}>
 				<h2 style={{ marginRight: 12 }}>Dashboard</h2>
-				<button className={`btn small ${followMarket ? 'primary' : ''}`} onClick={toggleFollow}>
-					Auto
-				</button>
+				{/* Show Auto only on LIVE */}
+				{range === 'LIVE' && (
+					<button className={`btn small ${followMarket ? 'primary' : ''}`} onClick={toggleFollow}>
+						Auto
+					</button>
+				)}
 				{shouldPoll(range) && !marketOpen && (
 					<span className="badge" style={{ marginLeft: 8 }}>Live paused (market closed)</span>
 				)}
@@ -183,7 +183,15 @@ export default function Dashboard()
 								{(c.returnPct * 100).toFixed(2)}%
 							</div>
 						</div>
-						<ChartOHLC series={c.series} mode={mode} range={range} small label={c.symbol} />
+						<ChartOHLC
+							series={c.series}
+							mode={mode}
+							range={range}
+							small
+							label={c.symbol}
+							showVol={false}
+						// showLiveLabel={range === 'LIVE'}
+						/>
 					</div>
 				))}
 			</div>

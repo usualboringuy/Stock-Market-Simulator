@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/client'
 import Sparkline from '../components/Sparkline'
@@ -7,7 +7,6 @@ function fmtINR(n)
 {
 	return Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
 }
-function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x }
 function fmtIST(iso)
 {
 	if (!iso) return ''
@@ -31,69 +30,32 @@ export default function Portfolio()
 	const [trades, setTrades] = useState([])
 	const [loading, setLoading] = useState(true)
 
-	// Holdings rows (positions only) and summary
-	const [rows, setRows] = useState([])  // [{token,symbol,qty,avg,invested,prevClose,lastClose,current,dayAbs,dayPct,totalAbs,totalPct}]
-	const [summary, setSummary] = useState(null)
-	const [sparks, setSparks] = useState({}) // token -> [values]
+	const [rows, setRows] = useState([])
+	const [sparks, setSparks] = useState({})
 
-	// Add funds
 	const [amt, setAmt] = useState('')
 	const [msg, setMsg] = useState('')
 	const [err, setErr] = useState('')
 
-	// Sorting
+	const [holdingsSearch, setHoldingsSearch] = useState('')
+	const [holdingsLimit, setHoldingsLimit] = useState('10')
+	const [tradesLimit, setTradesLimit] = useState('10')
 	const [sortBy, setSortBy] = useState('value')
 	const [sortDir, setSortDir] = useState('desc')
 
-	// Live
-	const [marketOpen, setMarketOpen] = useState(false)
-	const [liveNote, setLiveNote] = useState('')
-	const priceTimerRef = useRef(null)
-	const healthTimerRef = useRef(null)
-
 	const navigate = useNavigate()
-
-	function buildRowsAndSummary(baseRows, liveMap = null, sparkMap = null)
-	{
-		if (!Array.isArray(baseRows) || baseRows.length === 0)
-		{
-			setRows([])
-			if (sparkMap) setSparks(sparkMap)
-			setSummary({ value: 0, invested: 0, dayAbs: 0, dayPct: 0, totalAbs: 0, totalPct: 0 })
-			return
-		}
-		let sumCurrent = 0, sumPrev = 0, sumInvested = 0
-		const updated = baseRows.map(r =>
-		{
-			const priceNow = (liveMap && liveMap[r.token] != null) ? Number(liveMap[r.token]) : Number(r.lastClose)
-			const current = r.qty * priceNow
-			const prev = r.qty * r.prevClose
-			const dayAbs = current - prev
-			const dayPct = prev > 0 ? (dayAbs / prev) * 100 : 0
-			const totalAbs = current - r.invested
-			const totalPct = r.invested > 0 ? (totalAbs / r.invested) * 100 : 0
-			sumCurrent += current
-			sumPrev += prev
-			sumInvested += r.invested
-			return { ...r, lastClose: priceNow, current, dayAbs, dayPct, totalAbs, totalPct }
-		})
-		setRows(updated)
-		if (sparkMap) setSparks(sparkMap)
-		const dayAbs = sumCurrent - sumPrev
-		const dayPct = sumPrev > 0 ? (dayAbs / sumPrev) * 100 : 0
-		const totalAbs = sumCurrent - sumInvested
-		const totalPct = sumInvested > 0 ? (totalAbs / sumInvested) * 100 : 0
-		setSummary({ value: sumCurrent, invested: sumInvested, dayAbs, dayPct, totalAbs, totalPct })
-	}
+	const mapLimit = (v) => (v === 'all' ? 1000 : Number(v))
 
 	const reload = async () =>
 	{
 		setLoading(true)
+		setErr('')
+		setMsg('')
 		try
 		{
 			const [pfRes, trRes] = await Promise.all([
 				api.get('/api/portfolio'),
-				api.get('/api/trades/recent', { params: { limit: 20 } })
+				api.get('/api/trades/recent', { params: { limit: mapLimit(tradesLimit) } })
 			])
 			const pfData = pfRes.data
 			setPf(pfData)
@@ -103,13 +65,12 @@ export default function Portfolio()
 			const tokens = Object.keys(pos).filter(t => (pos[t]?.quantity || 0) > 0)
 			if (tokens.length === 0)
 			{
-				buildRowsAndSummary([])
-				return
+				setRows([]); setSparks({}); return
 			}
 
-			// Baseline: daily prev/last close + seed sparkline from last 40 daily closes
 			const now = new Date()
-			const from = addDays(now, -60)
+			const from = new Date(now)
+			from.setDate(from.getDate() - 60)
 			const seriesMap = {}
 			await Promise.all(tokens.map(async (tok) =>
 			{
@@ -125,96 +86,69 @@ export default function Portfolio()
 				}
 			}))
 
+			const baseRows = []
 			const sparkMap = {}
-			const baseRows = tokens.map(tok =>
+			let sumCurrent = 0, sumPrev = 0, sumInvested = 0
+
+			for (const tok of tokens)
 			{
 				const p = pos[tok]
 				const qty = Number(p.quantity || 0)
 				const avg = Number(p.avg_price || 0)
 				const invested = qty * avg
+
 				const series = seriesMap[tok] || []
 				const n = series.length
-				const lastCloseDaily = n >= 1 ? Number(series[n - 1].c) : avg
-				const prevClose = n >= 2 ? Number(series[n - 2].c) : lastCloseDaily
-				// Seed sparkline with last 40 daily closes
-				sparkMap[tok] = series.slice(-40).map(s => Number(s.c)).filter(Number.isFinite)
-				return {
-					token: tok, symbol: p.symbol, qty, avg, invested,
-					prevClose, lastClose: lastCloseDaily,
-					current: qty * lastCloseDaily,
-					dayAbs: (qty * lastCloseDaily) - (qty * prevClose),
-					dayPct: prevClose > 0 ? ((lastCloseDaily - prevClose) / prevClose) * 100 : 0,
-					totalAbs: (qty * lastCloseDaily) - invested,
-					totalPct: invested > 0 ? (((qty * lastCloseDaily) - invested) / invested) * 100 : 0
-				}
-			})
+				const lastClose = n >= 1 ? Number(series[n - 1].c) : avg
+				const prevClose = n >= 2 ? Number(series[n - 2].c) : lastClose
+				const dayOpen = n >= 1 ? Number(series[n - 1].o) : avg
 
-			buildRowsAndSummary(baseRows, null, sparkMap)
+				const current = qty * lastClose
+				const prev = qty * prevClose
+				const dayAbs = current - prev
+				const dayPct = prev > 0 ? (dayAbs / prev) * 100 : 0
+				const totalAbs = current - invested
+				const totalPct = invested > 0 ? (totalAbs / invested) * 100 : 0
+
+				baseRows.push({ token: tok, symbol: p.symbol, qty, avg, invested, prevClose, lastClose, dayOpen, current, dayAbs, dayPct, totalAbs, totalPct })
+				sumCurrent += current
+				sumPrev += prev
+				sumInvested += invested
+				sparkMap[tok] = series.slice(-40).map(s => Number(s.c)).filter(Number.isFinite)
+			}
+
+			const dir = sortDir === 'asc' ? 1 : -1
+			baseRows.sort((a, b) => dir * (a.current - b.current))
+
+			setRows(baseRows)
+			setSparks(sparkMap)
 		} finally
 		{
 			setLoading(false)
 		}
 	}
 
-	const checkMarket = async () =>
-	{
-		try
-		{
-			const res = await api.get('/api/health')
-			const open = !!res.data?.market_open
-			setMarketOpen(open)
-			setLiveNote(open ? 'Live: auto-refreshing prices' : '')
-			return open
-		} catch
-		{
-			setMarketOpen(false)
-			setLiveNote('')
-			return false
-		}
-	}
-
-	const pollLive = async () =>
-	{
-		try
-		{
-			if (!marketOpen || rows.length === 0) return
-			const tokens = rows.map(r => r.token)
-			const res = await api.post('/api/prices/live', { tokens, minutes: 15, include_series: true, series_points: 40 })
-			const prices = res.data?.prices || {}
-
-			const liveMap = {}
-			const sparkMap = { ...sparks }
-			for (const tok of tokens)
-			{
-				const item = prices[tok]
-				if (!item) continue
-				if (item.last != null) liveMap[tok] = Number(item.last)
-				if (Array.isArray(item.series) && item.series.length >= 2)
-				{
-					sparkMap[tok] = item.series.map(p => Number(p.c)).filter(Number.isFinite)
-				}
-			}
-			buildRowsAndSummary(rows, Object.keys(liveMap).length ? liveMap : null, sparkMap)
-		} catch
-		{
-			// ignore
-		}
-	}
+	useEffect(() => { reload() }, [])
+	useEffect(() => { reload() }, [tradesLimit])
 
 	const deposit = async () =>
 	{
 		setMsg(''); setErr('')
 		const value = Number(amt)
-		if (!Number.isFinite(value) || value <= 0)
+		if (!Number.isFinite(value) || value <= 0) { setErr('Enter a positive amount'); return }
+		if (pf)
 		{
-			setErr('Enter a positive amount'); return
+			const remaining = Math.max(0, 1_000_000 - Number(pf.cash || 0))
+			if (value > remaining)
+			{
+				setErr(`You can add up to ₹ ${fmtINR(remaining)} only`)
+				return
+			}
 		}
 		try
 		{
 			const res = await api.post('/api/portfolio/deposit', { amount: value })
-			setPf(res.data)
-			setMsg(`Added ₹ ${value.toFixed(2)} to your cash`)
-			setAmt('')
+			setPf(res.data); setMsg(`Added ₹ ${value.toFixed(2)} to your cash`); setAmt('')
 		} catch (e)
 		{
 			const m = e?.response?.data?.detail || 'Deposit failed'
@@ -222,62 +156,31 @@ export default function Portfolio()
 		}
 	}
 
-	// Effects
-	useEffect(() =>
+	const resetPortfolio = async () =>
 	{
-		let mounted = true
-			; (async () => { if (mounted) await reload() })()
-		return () => { mounted = false }
-	}, [])
+		if (!window.confirm('Reset portfolio? This will clear trades, positions and set cash to ₹10,00,000.')) return
+		try
+		{
+			await api.post('/api/portfolio/reset')
+			await reload()
+			alert('Portfolio reset complete.')
+		} catch (e)
+		{
+			alert(e?.response?.data?.detail || 'Reset failed')
+		}
+	}
 
-	useEffect(() =>
+	const filteredHoldings = useMemo(() =>
 	{
-		let stopped = false
-		const start = async () =>
-		{
-			const open = await checkMarket()
-			if (stopped) return
+		const q = holdingsSearch.trim().toLowerCase()
+		const list = rows.filter(r => !q || r.symbol.toLowerCase().includes(q))
+		const n = holdingsLimit === 'all' ? list.length : Number(holdingsLimit)
+		return list.slice(0, n)
+	}, [rows, holdingsSearch, holdingsLimit])
 
-			if (open)
-			{
-				if (priceTimerRef.current) clearInterval(priceTimerRef.current)
-				priceTimerRef.current = setInterval(pollLive, 5000)
-				pollLive()
-			} else
-			{
-				if (priceTimerRef.current) clearInterval(priceTimerRef.current)
-				priceTimerRef.current = null
-			}
-
-			if (healthTimerRef.current) clearInterval(healthTimerRef.current)
-			healthTimerRef.current = setInterval(async () =>
-			{
-				const nowOpen = await checkMarket()
-				if (!nowOpen && priceTimerRef.current)
-				{
-					clearInterval(priceTimerRef.current); priceTimerRef.current = null
-				} else if (nowOpen && !priceTimerRef.current)
-				{
-					priceTimerRef.current = setInterval(pollLive, 5000); pollLive()
-				}
-			}, 60000)
-		}
-		start()
-		return () =>
-		{
-			stopped = true
-			if (priceTimerRef.current) clearInterval(priceTimerRef.current)
-			if (healthTimerRef.current) clearInterval(healthTimerRef.current)
-			priceTimerRef.current = null
-			healthTimerRef.current = null
-		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [rows.length])
-
-	// Sorting
 	const displayRows = useMemo(() =>
 	{
-		const arr = [...rows]
+		const arr = [...filteredHoldings]
 		const dir = sortDir === 'asc' ? 1 : -1
 		arr.sort((a, b) =>
 		{
@@ -287,7 +190,24 @@ export default function Portfolio()
 			return dir * (a[key] - b[key])
 		})
 		return arr
-	}, [rows, sortBy, sortDir])
+	}, [filteredHoldings, sortBy, sortDir])
+
+	const summary = useMemo(() =>
+	{
+		if (!rows.length) return { value: 0, invested: 0, dayAbs: 0, dayPct: 0, totalAbs: 0, totalPct: 0 }
+		let value = 0, invested = 0, prevSum = 0
+		for (const r of rows)
+		{
+			value += r.current
+			invested += r.invested
+			prevSum += r.qty * r.prevClose
+		}
+		const dayAbs = value - prevSum
+		const dayPct = prevSum > 0 ? (dayAbs / prevSum) * 100 : 0
+		const totalAbs = value - invested
+		const totalPct = invested > 0 ? (totalAbs / invested) * 100 : 0
+		return { value, invested, dayAbs, dayPct, totalAbs, totalPct }
+	}, [rows])
 
 	return (
 		<div className="grid">
@@ -297,75 +217,76 @@ export default function Portfolio()
 
 			{!loading && pf && (
 				<>
-					{/* Cash + Add funds */}
 					<div className="card">
 						<div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
 							<div>
 								<div><b>Cash:</b> ₹ {fmtINR(pf.cash)}</div>
 								<div><b>Realized P&L:</b> {pf.realized_pl >= 0 ? '+' : ''}{fmtINR(pf.realized_pl)}</div>
-								<div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-									Last updated: {fmtIST(pf.updated_at)}
-								</div>
-								{liveNote && <div style={{ fontSize: 12, color: '#0ea5e9', marginTop: 2 }}>{liveNote}</div>}
+								<div><small className="muted">Last updated: {fmtIST(pf.updated_at)}</small></div>
 							</div>
-							<div>
-								<div className="row" style={{ alignItems: 'center' }}>
-									<input
-										className="input"
-										style={{ width: 160 }}
-										placeholder="Add funds (₹)"
-										type="number"
-										min="1"
-										value={amt}
-										onChange={(e) => setAmt(e.target.value)}
-									/>
-									<button className="btn primary" onClick={deposit}>Add Funds</button>
+							<div className="row" style={{ alignItems: 'center', gap: 8 }}>
+								<input
+									className="input"
+									style={{ width: 160 }}
+									placeholder="Add funds (₹)"
+									type="number"
+									min="1"
+									value={amt}
+									onChange={(e) => setAmt(e.target.value)}
+								/>
+								<button className="btn primary" onClick={deposit}>Add Funds</button>
+								<button className="btn danger" onClick={resetPortfolio}>Reset Portfolio</button>
+							</div>
+						</div>
+						{(msg || err) && (
+							<div style={{ marginTop: 6, fontSize: 12, color: err ? 'var(--danger)' : 'var(--accent)' }}>
+								{err || msg}
+							</div>
+						)}
+					</div>
+
+					<div className="card">
+						<div className="section-title">Holdings</div>
+						<div className="holdings-summary">
+							<div className="metric">
+								<div className="metric-title">Holdings value</div>
+								<div className="metric-value">₹ {fmtINR(summary.value)}</div>
+							</div>
+							<div className="metric">
+								<div className="metric-title">1D returns</div>
+								<div className="metric-value" style={{ color: summary.dayAbs >= 0 ? 'var(--accent)' : 'var(--danger)' }}>
+									{summary.dayAbs >= 0 ? '+' : ''}₹ {fmtINR(summary.dayAbs)} ({summary.dayPct.toFixed(2)}%)
 								</div>
-								{(msg || err) && (
-									<div style={{ marginTop: 6, fontSize: 12, color: err ? 'var(--danger)' : 'var(--accent)' }}>
-										{err || msg}
-									</div>
-								)}
+							</div>
+							<div className="metric">
+								<div className="metric-title">Total returns</div>
+								<div className="metric-value" style={{ color: summary.totalAbs >= 0 ? 'var(--accent)' : 'var(--danger)' }}>
+									{summary.totalAbs >= 0 ? '+' : ''}₹ {fmtINR(summary.totalAbs)} ({summary.totalPct.toFixed(2)}%)
+								</div>
+							</div>
+							<div className="metric">
+								<div className="metric-title">Invested</div>
+								<div className="metric-value">₹ {fmtINR(summary.invested)}</div>
 							</div>
 						</div>
 					</div>
 
-					{/* Holdings Summary */}
-					<div className="card">
-						<div className="section-title">Holdings</div>
-						{summary ? (
-							<div className="holdings-summary">
-								<div className="metric">
-									<div className="metric-title">Holdings value</div>
-									<div className="metric-value">₹ {fmtINR(summary.value)}</div>
-								</div>
-								<div className="metric">
-									<div className="metric-title">1D returns</div>
-									<div className="metric-value" style={{ color: summary.dayAbs >= 0 ? 'var(--accent)' : 'var(--danger)' }}>
-										{summary.dayAbs >= 0 ? '+' : ''}₹ {fmtINR(summary.dayAbs)} ({summary.dayPct.toFixed(2)}%)
-									</div>
-								</div>
-								<div className="metric">
-									<div className="metric-title">Total returns</div>
-									<div className="metric-value" style={{ color: summary.totalAbs >= 0 ? 'var(--accent)' : 'var(--danger)' }}>
-										{summary.totalAbs >= 0 ? '+' : ''}₹ {fmtINR(summary.totalAbs)} ({summary.totalPct.toFixed(2)}%)
-									</div>
-								</div>
-								<div className="metric">
-									<div className="metric-title">Invested</div>
-									<div className="metric-value">₹ {fmtINR(summary.invested)}</div>
-								</div>
-							</div>
-						) : (
-							<small className="muted">No holdings.</small>
-						)}
-					</div>
-
-					{/* Holdings list + sorting + sparklines */}
 					<div className="card">
 						<div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
 							<div className="section-title" style={{ margin: 0 }}>Stocks you hold</div>
 							<div className="row" style={{ alignItems: 'center', gap: 8 }}>
+								<input
+									className="input" style={{ width: 180 }}
+									placeholder="Search holdings..."
+									value={holdingsSearch}
+									onChange={(e) => setHoldingsSearch(e.target.value)}
+								/>
+								<small className="muted">Show</small>
+								<select className="select" value={holdingsLimit} onChange={(e) => setHoldingsLimit(e.target.value)}>
+									<option value="10">10</option>
+									<option value="25">25</option>
+									<option value="all">All</option>
+								</select>
 								<small className="muted">Sort</small>
 								<select className="select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
 									<option value="value">By value</option>
@@ -381,11 +302,7 @@ export default function Portfolio()
 
 						{displayRows.length === 0 && <small className="muted">No positions.</small>}
 						{displayRows.map((r) => (
-							<div
-								key={r.token}
-								className="row"
-								style={{ justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px dashed var(--border)' }}
-							>
+							<div key={r.token} className="row" style={{ justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px dashed var(--border)' }}>
 								<div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
 									<div onClick={() => navigate(`/stock/${encodeURIComponent(r.symbol)}`)} style={{ cursor: 'pointer' }}>
 										<div style={{ fontWeight: 600 }}>{r.symbol}</div>
@@ -394,7 +311,7 @@ export default function Portfolio()
 										</div>
 									</div>
 									<div className="sparkline">
-										<Sparkline values={sparks[r.token] || []} />
+										<Sparkline values={sparks[r.token] || []} baseline={r.dayOpen} />
 									</div>
 								</div>
 								<div style={{ textAlign: 'right' }}>
@@ -413,9 +330,19 @@ export default function Portfolio()
 						))}
 					</div>
 
-					{/* Recent trades with readable time */}
 					<div className="card">
-						<div className="section-title">Recent Trades</div>
+						<div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+							<div className="section-title" style={{ margin: 0 }}>Recent Trades</div>
+							<div className="row" style={{ alignItems: 'center', gap: 8 }}>
+								<small className="muted">Show</small>
+								<select className="select" value={tradesLimit} onChange={(e) => setTradesLimit(e.target.value)}>
+									<option value="10">10</option>
+									<option value="25">25</option>
+									<option value="all">All</option>
+								</select>
+							</div>
+						</div>
+
 						{trades.length === 0 && <small className="muted">No recent trades.</small>}
 						{trades.map((t, i) => (
 							<div key={i} className="row" style={{ justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed var(--border)' }}>

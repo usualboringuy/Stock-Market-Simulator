@@ -75,13 +75,9 @@ export default function Stock()
 			{
 				const to = new Date()
 				const from = new Date(to)
-				if (range === 'LIVE')
-				{
-					from.setHours(9, 0, 0, 0)
-				} else
-				{
-					from.setDate(from.getDate() - rangeToDays(range))
-				}
+				if (range === 'LIVE') from.setHours(9, 0, 0, 0)
+				else from.setDate(from.getDate() - rangeToDays(range))
+
 				const params = {
 					symbol,
 					interval: range === 'LIVE' ? 'ONE_MINUTE' : 'ONE_DAY',
@@ -174,9 +170,12 @@ export default function Stock()
 						{(summary.pct * 100).toFixed(2)}%
 					</div>
 				)}
-				<button className={`btn small ${followMarket ? 'primary' : ''}`} onClick={toggleFollow} style={{ marginLeft: 8 }}>
-					Auto
-				</button>
+				{/* Show Auto only on LIVE */}
+				{range === 'LIVE' && (
+					<button className={`btn small ${followMarket ? 'primary' : ''}`} onClick={toggleFollow} style={{ marginLeft: 8 }}>
+						Auto
+					</button>
+				)}
 				{shouldPoll(range) && !marketOpen && (
 					<span className="badge" style={{ marginLeft: 8 }}>Live paused (market closed)</span>
 				)}
@@ -186,7 +185,13 @@ export default function Stock()
 			{!loading && err && <div className="card" style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}>{err}</div>}
 			{!loading && !err && (
 				<div className="card">
-					<ChartOHLC series={series} mode={mode} range={range} label={symbol} />
+					<ChartOHLC
+						series={series}
+						mode={mode}
+						range={range}
+						label={symbol}
+						showVol={true}
+					/>
 				</div>
 			)}
 			<div className="card">

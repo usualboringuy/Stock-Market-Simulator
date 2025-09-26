@@ -1,7 +1,7 @@
 // Chart.js v4 + chartjs-chart-financial 0.2.1
 // Line color across ALL ranges = compare current (last close) vs range open (first bar's open)
 // Green if current >= rangeOpen, Red otherwise. Live marker matches the line color.
-// Stats row unchanged.
+// Stats row: show/hide Vol; show LIVE pill only when asked.
 import
 {
 	CategoryScale,
@@ -117,11 +117,11 @@ function fmtVol(v)
 	return fmtNum(v)
 }
 
-export default function ChartOHLC({ series, mode = 'line', small = false, label = 'Price', range })
+export default function ChartOHLC({ series, mode = 'line', small = false, label = 'Price', range, showVol = true, showLiveLabel = false })
 {
 	const [containerRef, containerWidth] = useContainerWidth()
 
-	// Prepare series
+	// Normalize
 	const rows = useMemo(() =>
 	{
 		return (series || [])
@@ -137,7 +137,7 @@ export default function ChartOHLC({ series, mode = 'line', small = false, label 
 			.sort((a, b) => a.t - b.t)
 	}, [series])
 
-	// Summary (as you had)
+	// Summary
 	const summary = useMemo(() =>
 	{
 		if (!rows.length) return null
@@ -162,7 +162,7 @@ export default function ChartOHLC({ series, mode = 'line', small = false, label 
 	const candleRaw = useMemo(() => rows.map(d => ({ x: d.t, o: d.o, h: d.h, l: d.l, c: d.c })), [rows])
 	const linePts = useMemo(() => rows.map(d => ({ x: d.t, y: d.c })), [rows])
 
-	// Key logic: compare current (last close) to rangeOpen (first bar's open)
+	// Range color rule: current vs range open (first bar's open)
 	const { rangeOpen, currentPrice } = useMemo(() =>
 	{
 		if (!rows.length) return { rangeOpen: null, currentPrice: null }
@@ -173,15 +173,15 @@ export default function ChartOHLC({ series, mode = 'line', small = false, label 
 	{
 		if (!Number.isFinite(rangeOpen) || !Number.isFinite(currentPrice))
 		{
-			return { lineColor: '#0ea5e9', lineFill: 'rgba(14,165,233,0.15)' } // default
+			return { lineColor: '#0ea5e9', lineFill: 'rgba(14,165,233,0.15)' }
 		}
 		const up = currentPrice >= rangeOpen
 		return up
-			? { lineColor: '#10b981', lineFill: 'rgba(16,185,129,0.15)' }   // green
-			: { lineColor: '#ef4444', lineFill: 'rgba(239,68,68,0.15)' }   // red
+			? { lineColor: '#10b981', lineFill: 'rgba(16,185,129,0.15)' }
+			: { lineColor: '#ef4444', lineFill: 'rgba(239,68,68,0.15)' }
 	}, [rangeOpen, currentPrice])
 
-	// Candles density & thickness
+	// Candle density/thickness
 	const desiredBars = useMemo(() =>
 	{
 		const w = containerWidth || (small ? 520 : 1000)
@@ -202,7 +202,7 @@ export default function ChartOHLC({ series, mode = 'line', small = false, label 
 	const isCandle = mode === 'candlestick'
 	const type = isCandle ? 'candlestick' : 'line'
 
-	// Live marker (only in LIVE), match color
+	// Live marker (only in LIVE)
 	const markerPoint = useMemo(() =>
 	{
 		if (!rows.length || effectiveRange !== 'LIVE') return null
@@ -296,16 +296,24 @@ export default function ChartOHLC({ series, mode = 'line', small = false, label 
 
 			{summary && (
 				<div className="stats-bar">
-					<span className="stat" style={{ color: "#0ea5e9" }}>Current: <b>{fmtNum(currentPrice ?? summary.c)}</b></span>
+					<span className="stat" style={{ color: '#0ea5e9' }}>Current: <b>{fmtNum(currentPrice ?? summary.c)}</b></span>
 					<span className="stat">Open: <b>{fmtNum(summary.o)}</b></span>
 					<span className="stat">High: <b>{fmtNum(summary.h)}</b></span>
 					<span className="stat">Low: <b>{fmtNum(summary.l)}</b></span>
 					<span className="stat">Close: <b>{fmtNum(summary.c)}</b></span>
+
+					{showVol && summary.vol != null && (
+						<span className="stat">Vol: <b>{fmtNum(summary.vol)}</b></span>
+					)}
+
 					<span className={`stat ${summary.chg >= 0 ? 'up' : 'down'}`}>
 						Change: <b>{summary.chg >= 0 ? '+' : ''}{fmtNum(summary.chg)}</b> ({(summary.pct).toFixed(2)}%)
 					</span>
-					{summary.vol != null && <span className="stat">Vol: <b>{fmtNum(summary.vol)}</b></span>}
-					<span className="stat pill">{effectiveRange}</span>
+
+					{showLiveLabel && (effectiveRange || '').toUpperCase() === 'LIVE' && (
+						<span className="stat pill">LIVE</span>
+					)}
+					<span className="stat pill">{(effectiveRange || '').toUpperCase()}</span>
 				</div>
 			)}
 		</div>
